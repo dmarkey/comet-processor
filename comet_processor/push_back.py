@@ -1,22 +1,46 @@
+import datetime
+
 __author__ = 'dmarkey'
 import json
 import redis
 import sys
 sys.path.append(".")
-import comet_config
 
-pool = redis.ConnectionPool(host=comet_config.REDIS_HOST, port=comet_config.REDIS_PORT)
-
-r = redis.Redis(connection_pool=pool)
+pool = r = None
 
 
-class TalkBackRequest(object):
+class Config(object):
+    def __init__(self):
+        self.REDIS_HOST = "localhost"
+        self.REDIS_PORT = 6379
+        self.REDIS_NAMESPACE = "/comet_listener/"
+
+comet_config = Config()
+
+
+def init():
+    global pool, r
+    if pool is not None:
+        return
+    pool = redis.ConnectionPool(host=comet_config.REDIS_HOST, port=comet_config.REDIS_PORT)
+    r = redis.Redis(connection_pool=pool)
+
+date_handler = lambda obj: (
+    obj.isoformat()
+    if isinstance(obj, datetime.datetime)
+    or isinstance(obj, datetime.date)
+    else None
+)
+
+
+class TalkBackEvent(object):
     def __init__(self, request):
         self.request_data = request
+        self.event_type = request['event']
 
     @staticmethod
     def from_uuid(uuid):
-        return TalkBackRequest({'uuid': uuid})
+        return TalkBackEvent({'uuid': uuid, "event": "push"})
 
     @staticmethod
     def send_message_bulk(self, uuids, message, status=200):
@@ -31,7 +55,7 @@ class TalkBackRequest(object):
 
     def send_message(self, result, status=200):
         wrapper = {'result_status': status, 'result_payload': result, "uuid": self.get_uuid()}
-        payload = json.dumps(wrapper)
+        payload = json.dumps(wrapper, default=date_handler)
         uuid = self.get_uuid()
         script = """
             local queue = redis.call('hget', KEYS[3] .. 'active_uuids', KEYS[1])
@@ -56,22 +80,21 @@ class TalkBackRequest(object):
     def unauthorized(self, message=None):
         self.send_message(message, status=401)
 
+    def bad_request(self, message=None):
+        self.send_message(message, status=400)
+
 
 class IncomingProcessor(object):
     service_name = None
 
     @staticmethod
     def deserialize(payload):
-        return TalkBackRequest(request=json.loads(payload))
+        return TalkBackEvent(request=json.loads(payload))
 
     def __init__(self):
         if not self.service_name:
             raise Exception("Please subclass and define service_name")
-        self.redis = r
-        self.list_name = comet_config.REDIS_NAMESPACE + "incoming/" + self.service_name
 
-    def on_failure(self, message):
-        pass
 
     def process_incoming(self, item):
         try:
@@ -79,11 +102,14 @@ class IncomingProcessor(object):
         except TypeError:
             return
 
-        request = TalkBackRequest(incoming)
+        request = TalkBackEvent(incoming)
 
         self.work(request)
 
     def run(self):
+        init()
+        self.list_name = comet_config.REDIS_NAMESPACE + "incoming/" + self.service_name
+        self.redis = r
         while True:
             try:
                 item = self.redis.blpop(self.list_name)[1]
