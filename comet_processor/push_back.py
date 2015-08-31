@@ -32,38 +32,10 @@ date_handler = lambda obj: (
 )
 
 
-class AcknowledgementNeeded(Exception):
-    pass
-
-
 class TalkBackEvent(object):
     def __init__(self, request):
         self.request_data = request
         self.event_type = request['event']
-        if self.event_type == "init":
-            self.ack_needed = True
-        else:
-            self.ack_needed = False
-
-    @property
-    def ack_list(self):
-        """
-        The property that works out the list to send the acknowledgement to.
-        :return:
-        """
-        return comet_config.REDIS_NAMESPACE + "ack_waiting/" + self.get_uuid()
-
-    def ack(self, message="", status=200):
-        """
-        This function is used to acknowledge the initial request from the "handshake". It's important that
-        this is executed quickly.
-        :param message: The message to send back to the consumer
-        :param status: HTTP status code.
-        :return: Nothing
-        """
-        wrapper = {'result_status': status, 'message': message, "uuid": self.get_uuid()}
-        r.lpush(self.ack_list, json.dumps(wrapper, default=date_handler))
-        self.ack_needed = False
 
     @staticmethod
     def from_uuid(uuid):
@@ -107,10 +79,7 @@ class TalkBackEvent(object):
         :param status: the HTTP status code
         :return:
         """
-        if self.ack_needed:
-            raise AcknowledgementNeeded()
         wrapper = {'status_code': status, 'message': message, "uuid": self.get_uuid()}
-        print(wrapper)
         payload = json.dumps(wrapper, default=date_handler)
         uuid = self.get_uuid()
         script = """
@@ -143,9 +112,7 @@ class TalkBackEvent(object):
         :param message: Message to give if any
         :return:
         """
-        if not self.ack_needed:
-            return self.send_message(message, status=401)
-        return self.ack(message, status=401)
+        return self.send_message(message, status=401)
 
     def bad_request(self, message=None):
         """
@@ -153,9 +120,7 @@ class TalkBackEvent(object):
         :param message: Message to give if any
         :return: Nothing
         """
-        if not self.ack_needed:
-            return self.send_message(message, status=400)
-        return self.ack(message, status=400)
+        return self.send_message(message, status=400)
 
 
 class IncomingProcessor(object):
