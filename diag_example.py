@@ -2,7 +2,7 @@ import copy
 
 __author__ = 'dmarkey'
 from threading import Timer, Lock
-from comet_processor.push_back import IncomingProcessor, TalkBackRequest
+from comet_processor.push_back import IncomingProcessor, TalkBackEvent
 
 lock = Lock()
 
@@ -39,7 +39,7 @@ def emulate_push():
                    "original_request": "<unavailable>"}
             message_num += 1
             results['message_num'] = message_num
-            item = TalkBackRequest.from_uuid(req)
+            item = TalkBackEvent.from_uuid(req)
             item.send_message(results)
 
             if message_num == MESSAGES_TO_DELIVER:
