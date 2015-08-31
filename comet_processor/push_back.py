@@ -3,8 +3,7 @@ import datetime
 __author__ = 'dmarkey'
 import json
 import redis
-import sys
-sys.path.append(".")
+
 
 pool = r = None
 
@@ -33,10 +32,27 @@ date_handler = lambda obj: (
 )
 
 
+class AcknowledgementNeeded(Exception):
+    pass
+
+
 class TalkBackEvent(object):
     def __init__(self, request):
         self.request_data = request
         self.event_type = request['event']
+        if self.event_type == "init":
+            self.ack_needed = True
+        else:
+            self.ack_needed = False
+
+    @property
+    def ack_list(self):
+        return comet_config.REDIS_NAMESPACE + "ack_waiting/" + self.get_uuid()
+
+    def ack(self, message="", status=200):
+        wrapper = {'result_status': status, 'message': message, "uuid": self.get_uuid()}
+        r.lpush(self.ack_list, json.dumps(wrapper, default=date_handler))
+        self.ack_needed = False
 
     @staticmethod
     def from_uuid(uuid):
@@ -54,7 +70,10 @@ class TalkBackEvent(object):
         return self.request_data['uuid']
 
     def send_message(self, result, status=200):
+        if self.ack_needed:
+            raise AcknowledgementNeeded()
         wrapper = {'result_status': status, 'result_payload': result, "uuid": self.get_uuid()}
+        print(wrapper)
         payload = json.dumps(wrapper, default=date_handler)
         uuid = self.get_uuid()
         script = """
@@ -78,10 +97,14 @@ class TalkBackEvent(object):
         self.send_message("session closed", status=410)
 
     def unauthorized(self, message=None):
-        self.send_message(message, status=401)
+        if not self.ack_needed:
+            return self.send_message(message, status=401)
+        return self.ack(message, status=401)
 
     def bad_request(self, message=None):
-        self.send_message(message, status=400)
+        if not self.ack_needed:
+            return self.send_message(message, status=400)
+        return self.ack(message, status=400)
 
 
 class IncomingProcessor(object):
@@ -95,7 +118,6 @@ class IncomingProcessor(object):
         if not self.service_name:
             raise Exception("Please subclass and define service_name")
 
-
     def process_incoming(self, item):
         try:
             incoming = json.loads(item.decode("utf-8"))
@@ -108,11 +130,14 @@ class IncomingProcessor(object):
 
     def run(self):
         init()
-        self.list_name = comet_config.REDIS_NAMESPACE + "incoming/" + self.service_name
+        list_name = comet_config.REDIS_NAMESPACE + "incoming/" + self.service_name
+        list_name_processing = list_name + "/processing"
         self.redis = r
         while True:
             try:
-                item = self.redis.blpop(self.list_name)[1]
+                item = self.redis.brpoplpush(list_name,  list_name_processing)
                 self.process_incoming(item)
+                self.redis.lrem(list_name_processing, item)
+
             except redis.ConnectionError:
                 pass

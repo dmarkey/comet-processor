@@ -17,13 +17,15 @@ class MyProcessor(IncomingProcessor):
     service_name = "diag_example"
 
     def work(self, item):
-        if item.request_data['data'].get("token", None) != TOKEN:
-            print(item.request_data)
-            return item.unauthorized("Token incorrect")
+        if item.request_data['event'] == "init":
+            if item.request_data['data'].get("token", None) != TOKEN:
+                print(item.request_data)
+                return item.unauthorized("Token incorrect")
 
-        request_serialized = item.get_uuid()
-        with lock:
-            requests[request_serialized] = 0
+            request_serialized = item.get_uuid()
+            with lock:
+                item.ack()
+                requests[request_serialized] = 0
 
 
 def emulate_push():
