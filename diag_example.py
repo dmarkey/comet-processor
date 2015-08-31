@@ -1,6 +1,5 @@
-import copy
-
 __author__ = 'dmarkey'
+import copy
 from threading import Timer, Lock
 from comet_processor.push_back import IncomingProcessor, TalkBackEvent
 
