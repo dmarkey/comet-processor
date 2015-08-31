@@ -100,16 +100,16 @@ class TalkBackEvent(object):
         """
         return self.request_data['uuid']
 
-    def send_message(self, result, status=200):
+    def send_message(self, message, status=200):
         """
         Send a message to the TalkBack client
-        :param result: the message to be sent
+        :param message: the message to be sent
         :param status: the HTTP status code
         :return:
         """
         if self.ack_needed:
             raise AcknowledgementNeeded()
-        wrapper = {'result_status': status, 'result_payload': result, "uuid": self.get_uuid()}
+        wrapper = {'status_code': status, 'message': message, "uuid": self.get_uuid()}
         print(wrapper)
         payload = json.dumps(wrapper, default=date_handler)
         uuid = self.get_uuid()
