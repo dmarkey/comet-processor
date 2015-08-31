@@ -23,7 +23,7 @@ class MyProcessor(IncomingProcessor):
 
             request_serialized = item.get_uuid()
             with lock:
-                item.ack()
+                item.send_message()
                 requests[request_serialized] = 0
 
 
