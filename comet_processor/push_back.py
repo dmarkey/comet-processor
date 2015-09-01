@@ -47,7 +47,7 @@ class TalkBackEvent(object):
         return TalkBackEvent({'uuid': uuid, "event": "push"})
 
     @staticmethod
-    def send_message_bulk(self, uuids, message, status=200):
+    def send_message_bulk(uuids, message, status=200):
         """
         Given a list of uuids, send the same message back to each consumer.
         :param uuids: list of uuids
@@ -56,7 +56,7 @@ class TalkBackEvent(object):
         :return:
         """
         for uuid in uuids:
-            self.from_uuid(uuid).send_messge(message, status)
+            TalkBackEvent.from_uuid(uuid).send_message(message, status)
 
     def serialize(self):
         """
@@ -72,7 +72,7 @@ class TalkBackEvent(object):
         """
         return self.request_data['uuid']
 
-    def send_message(self, message, status=200):
+    def send_message(self, message="", status=200):
         """
         Send a message to the TalkBack client
         :param message: the message to be sent
@@ -85,16 +85,20 @@ class TalkBackEvent(object):
         script = """
             local queue = redis.call('hget', KEYS[3] .. 'active_uuids', KEYS[1])
             if queue == '' then
+                redis.log(redis.LOG_DEBUG, "BACKLOG : No Queue, pushing to backlog " .. KEYS[1])
                 redis.call("lpush", KEYS[3] .. KEYS[1] .. "_backlog", KEYS[2])
                 return "BACKLOG"
             elseif queue == nil then
+                redis.log(redis.LOG_DEBUG, "TIMEOUT : Timed out " .. KEYS[1])
                 return "TIMEOUT"
             end
             local result = redis.call("publish", queue, KEYS[2])
             if result == 0 then
+                redis.log(redis.LOG_DEBUG, "BACKLOG_FAILURE : PUB Failed, saving to backlog  " .. KEYS[1])
                 redis.call("lpush", KEYS[3] ..  KEYS[1] .. "_backlog", KEYS[2])
-                return "BACKLOG"
+                return "BACKLOG_FAILURE"
             end
+            redis.log(redis.LOG_DEBUG, "SUCCESS : " .. KEYS[1])
             return "SUCCESS"
         """
         return r.eval(script, 3, uuid, payload, comet_config.REDIS_NAMESPACE)
