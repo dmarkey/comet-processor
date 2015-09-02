@@ -3,7 +3,7 @@ __author__ = 'dmarkey'
 from setuptools import setup
 
 setup(name='comet-processor',
-      version='0.1',
+      version='0.2',
       description='Comet processor base class',
       url='http://github.com/dmarkey/comet-processor',
       author='David Markey',
