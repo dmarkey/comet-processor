@@ -79,6 +79,7 @@ class TalkBackEvent(object):
         :param status: the HTTP status code
         :return:
         """
+        init()
         wrapper = {'status_code': status, 'message': message, "uuid": self.get_uuid()}
         payload = json.dumps(wrapper, default=date_handler)
         uuid = self.get_uuid()
