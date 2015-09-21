@@ -38,25 +38,25 @@ class TalkBackEvent(object):
         self.event_type = request['event']
 
     @staticmethod
-    def from_uuid(uuid):
+    def from_session_id(session_id):
         """
         Use this static method to create a TalkBackEvent to send a message to the consumer.
-        :param uuid: the required UUID
+        :param session_id: the required session_id
         :return: A TalkBackEvent object
         """
-        return TalkBackEvent({'uuid': uuid, "event": "push"})
+        return TalkBackEvent({'id': session_id, "event": "push"})
 
     @staticmethod
-    def send_message_bulk(uuids, message, status=200):
+    def send_message_bulk(session_ids, message, status=200):
         """
-        Given a list of uuids, send the same message back to each consumer.
-        :param uuids: list of uuids
+        Given a list of session ids, send the same message back to each consumer.
+        :param session_ids: list of session_ids
         :param message: the message thats required (object thats JSON serializable)
         :param status: HTTP status code
         :return:
         """
-        for uuid in uuids:
-            TalkBackEvent.from_uuid(uuid).send_message(message, status)
+        for session_id in session_ids:
+            TalkBackEvent.from_session_id(session_id).send_message(message, status)
 
     def serialize(self):
         """
@@ -65,12 +65,12 @@ class TalkBackEvent(object):
         """
         return json.dumps(self.request_data)
 
-    def get_uuid(self):
+    def get_session_id(self):
         """
         Get the uuid of this object
         :return: the UUID (String form)
         """
-        return self.request_data['uuid']
+        return self.request_data['id']
 
     def send_message(self, message="", status=200):
         """
@@ -80,11 +80,11 @@ class TalkBackEvent(object):
         :return:
         """
         init()
-        wrapper = {'status_code': status, 'message': message, "uuid": self.get_uuid()}
+        wrapper = {'status_code': status, 'message': message, "id": self.get_session_id()}
         payload = json.dumps(wrapper, default=date_handler)
-        uuid = self.get_uuid()
+        session_id = self.get_session_id()
         script = """
-            local queue = redis.call('hget', KEYS[3] .. 'active_uuids', KEYS[1])
+            local queue = redis.call('hget', KEYS[3] .. 'active_sessions', KEYS[1])
             if queue == '' then
                 redis.log(redis.LOG_DEBUG, "BACKLOG : No Queue, pushing to backlog " .. KEYS[1])
                 redis.call("lpush", KEYS[3] .. KEYS[1] .. "_backlog", KEYS[2])
@@ -102,7 +102,7 @@ class TalkBackEvent(object):
             redis.log(redis.LOG_DEBUG, "SUCCESS : " .. KEYS[1])
             return "SUCCESS"
         """
-        return r.eval(script, 3, uuid, payload, comet_config.REDIS_NAMESPACE)
+        return r.eval(script, 3, session_id, payload, comet_config.REDIS_NAMESPACE)
 
     def finish(self):
         """
