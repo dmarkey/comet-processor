@@ -21,7 +21,7 @@ class MyProcessor(IncomingProcessor):
                 print(item.request_data)
                 return item.unauthorized("Token incorrect")
 
-            request_serialized = item.get_uuid()
+            request_serialized = item.get_session_id()
             with lock:
                 item.send_message()
                 requests[request_serialized] = 0
@@ -38,7 +38,7 @@ def emulate_push():
                    "original_request": "<unavailable>"}
             message_num += 1
             results['message_num'] = message_num
-            item = TalkBackEvent.from_uuid(req)
+            item = TalkBackEvent.from_session_id(req)
             item.send_message(results)
 
             if message_num == MESSAGES_TO_DELIVER:
