@@ -72,7 +72,7 @@ class TalkBackEvent(object):
         """
         return self.request_data['id']
 
-    def send_message(self, message="", status=200):
+    def send_message(self, message="", status=200, expiry=None):
         """
         Send a message to the TalkBack client
         :param message: the message to be sent
@@ -81,6 +81,9 @@ class TalkBackEvent(object):
         """
         init()
         wrapper = {'status_code': status, 'message': message, "id": self.get_session_id()}
+        if expiry is not None:
+            wrapper['expiry'] = expiry
+
         payload = json.dumps(wrapper, default=date_handler)
         session_id = self.get_session_id()
         script = """
