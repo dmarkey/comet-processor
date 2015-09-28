@@ -67,8 +67,8 @@ class TalkBackEvent(object):
 
     def get_session_id(self):
         """
-        Get the uuid of this object
-        :return: the UUID (String form)
+        Get the session ID of this object
+        :return: session ID (String form)
         """
         return self.request_data['id']
 

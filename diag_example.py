@@ -2,6 +2,7 @@ __author__ = 'dmarkey'
 import copy
 from threading import Timer, Lock
 from comet_processor.push_back import IncomingProcessor, TalkBackEvent
+import json
 
 lock = Lock()
 
@@ -16,9 +17,12 @@ class MyProcessor(IncomingProcessor):
     service_name = "diag_example"
 
     def work(self, item):
+        print(json.dumps(item.request_data, sort_keys=True, indent=4))
+
         if item.request_data['event'] == "init":
-            if item.request_data['data'].get("token", None) != TOKEN:
-                print(item.request_data)
+
+            auth_token = item.request_data['headers']["AUTHORIZATION"].split()[1]
+            if auth_token != TOKEN:
                 return item.unauthorized("Token incorrect")
 
             request_serialized = item.get_session_id()
